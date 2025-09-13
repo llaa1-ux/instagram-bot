@@ -1,16 +1,16 @@
 services:
   - type: web
-    name: instagram-bot
+    name: bot-instagram
     env: docker
-    plan: free
     dockerfilePath: Dockerfile
     autoDeploy: true
+    plan: free
     envVars:
       - key: TELEGRAM_TOKEN
         value: "SEU_TOKEN_DO_TELEGRAM"
       - key: IG_USERNAME
         value: "SEU_USUARIO_INSTAGRAM"
       - key: WEBHOOK_URL
-        value: "https://SEU_APP.onrender.com/webhook"
+        value: "https://SEU_SUBDOMINIO.onrender.com/webhook"
       - key: PORT
         value: "8443"
