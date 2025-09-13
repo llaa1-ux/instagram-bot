@@ -1,12 +1,22 @@
+# Use Python 3.11
 FROM python:3.11-slim
 
+# Evita perguntas durante a instalação de pacotes
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Cria diretório do app
 WORKDIR /app
-COPY . /app
 
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+# Copia arquivos necessários
+COPY bot_instagram.py .
+COPY requirements.txt .
+COPY cookies_instagram.txt .
 
-ENV PORT=10000
-EXPOSE 10000
+# Instala dependências
+RUN pip install --no-cache-dir -r requirements.txt
 
-CMD ["python", "bot_instagram.py"]
+# Expõe a porta que Render fornece via $PORT
+EXPOSE 5000
+
+# Comando para rodar o bot
+CMD ["sh", "-c", "python bot_instagram.py"]

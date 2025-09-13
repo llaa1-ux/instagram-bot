@@ -1,3 +1,2 @@
 python-telegram-bot[webhooks]==20.4
 instaloader>=4.14
-yt-dlp>=2025.9.1
