@@ -1,21 +1,14 @@
 import os
-import asyncio
 import instaloader
-from aiohttp import web
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# -----------------------
-# Configurações
-# -----------------------
-IG_USERNAME = os.environ.get("IG_USERNAME")  # usuário Instagram
+IG_USERNAME = os.environ["IG_USERNAME"]
 SESSION_FILE = f"session-{IG_USERNAME}"
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")  # token Telegram
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # URL completa do webhook, ex: https://meuapp.onrender.com/webhook
+TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
+WEBHOOK_URL = os.environ["WEBHOOK_URL"]
 
-# -----------------------
 # Instaloader
-# -----------------------
 L = instaloader.Instaloader()
 try:
     L.load_session_from_file(IG_USERNAME, filename=SESSION_FILE)
@@ -24,9 +17,7 @@ except Exception as e:
     print(f"Erro ao carregar sessão: {e}")
     exit(1)
 
-# -----------------------
 # Comando /start
-# -----------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Bot online! Testando acesso ao Instagram...")
 
@@ -38,28 +29,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"Erro ao acessar perfil: {e}")
 
-# -----------------------
-# Aplicação Telegram
-# -----------------------
-async def main():
+# Inicializa o bot com webhook
+if __name__ == "__main__":
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
 
-    # Remove webhook antigo
-    await app.bot.delete_webhook(drop_pending_updates=True)
-    # Define webhook novo
-    await app.bot.set_webhook(url=WEBHOOK_URL)
+    # Remove webhook antigo e seta novo
+    import asyncio
+    asyncio.run(app.bot.delete_webhook(drop_pending_updates=True))
+    asyncio.run(app.bot.set_webhook(url=WEBHOOK_URL))
 
-    # Cria servidor para receber updates
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", int(os.environ.get("PORT", 8000)))
-    print(f"Webhook definido: {WEBHOOK_URL}")
-    await site.start()
-
-    # Mantém o bot rodando
-    while True:
-        await asyncio.sleep(3600)
-
-if __name__ == "__main__":
-    asyncio.run(main())
+    # Roda o webhook diretamente (porta padrão 8443 ou PORT do Render)
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.environ.get("PORT", 8000)),
+        url_path="",  # não precisa de "/webhook" se a URL completa já tem
+        webhook_url=WEBHOOK_URL
+    )
