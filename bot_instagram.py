@@ -1,127 +1,69 @@
 import os
-import asyncio
 import instaloader
-from telegram import Update, InputMediaPhoto, InputMediaVideo
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 
-# ▼▼▼ VARIÁVEIS DE AMBIENTE ▼▼▼
-TOKEN = os.environ.get("TOKEN")           # Token do Bot Telegram
-IG_USERNAME = os.environ.get("IG_USERNAME")  # Seu usuário do Instagram
-COOKIE_FILE = os.environ.get("COOKIE_FILE")  # Arquivo de cookies exportado
-PORT = int(os.environ.get("PORT", 8443))    # Porta do Render
-# ▲▲▲ VARIÁVEIS DE AMBIENTE ▲▲▲
-
-# Criar pasta de downloads temporários
-DOWNLOAD_DIR = "downloads"
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+# Variáveis de ambiente
+TOKEN = os.environ.get("TOKEN")
+IG_USERNAME = os.environ.get("IG_USERNAME")
+COOKIE_FILE = os.environ.get("COOKIE_FILE")
+PORT = int(os.environ.get("PORT", 8443))
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
 
 # Inicializa Instaloader
-L = instaloader.Instaloader(download_video_thumbnails=False,
-                            save_metadata=False,
-                            post_metadata_txt_pattern='')
+L = instaloader.Instaloader()
+try:
+    L.load_session_from_file(username=IG_USERNAME, filename=COOKIE_FILE)
+except Exception as e:
+    print("Erro ao carregar sessão de cookies:", e)
 
-# Carregar sessão de cookies
-if COOKIE_FILE and os.path.exists(COOKIE_FILE):
-    try:
-        L.load_session_from_file(username=IG_USERNAME, filename=COOKIE_FILE)
-    except Exception as e:
-        print(f"Erro ao carregar sessão de cookies: {e}")
-
-# Função para baixar mídias
-def baixar_midias(insta_url: str):
-    media_files = []
-    try:
-        shortcode = insta_url.rstrip('/').split("/")[-1]
-        post = instaloader.Post.from_shortcode(L.context, shortcode)
-        count = 0
-
-        for idx, resource in enumerate(post.get_sidecar_nodes() if post.is_sidecar else [post]):
-            if count >= 20:
-                break
-
-            ext = "mp4" if resource.is_video else "jpg"
-            filename = f"{DOWNLOAD_DIR}/{shortcode}_{idx}.{ext}"
-            L.download_pic(filename, resource.display_url, post.date)
-            media_files.append(filename)
-            count += 1
-
-    except Exception as e:
-        print(f"Erro no download: {e}")
-
-    return media_files
-
-# Comando /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Olá! 👋 Envie um link do Instagram que eu baixo até 20 mídias para você."
-    )
+    await update.message.reply_text("Bot Instagram ativo! Use /download <URL do post>.")
 
-# Quando usuário envia link
-async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    url = update.message.text
-    media_paths = []
+async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if len(context.args) == 0:
+        await update.message.reply_text("Envie o link do post do Instagram. Ex: /download https://www.instagram.com/p/xxxx")
+        return
 
-    processing_msg = await update.message.reply_text("⏳ Processando seu link...")
-
+    post_url = context.args[0]
+    shortcode = post_url.rstrip("/").split("/")[-1]
+    
     try:
-        if "instagram.com/p/" in url:
-            media_paths = await asyncio.to_thread(baixar_midias, url)
+        post = instaloader.Post.from_shortcode(L.context, shortcode)
+        media_count = 0
+        media_files = []
 
-            if not media_paths:
-                await processing_msg.edit_text(
-                    "❌ Não foi possível baixar nenhuma mídia.\n"
-                    "O post pode ser privado ou os cookies expiraram."
-                )
-                return
+        for idx, resource in enumerate(post.get_sidecar_nodes(), start=1):
+            if idx > 20:
+                break
+            filename = f"{shortcode}_{idx}.jpg"
+            L.download_pic(filename, resource.display_url, post.date_utc)
+            media_files.append(filename)
+            media_count += 1
 
-            media_group = []
-            files_to_send = [open(path, "rb") for path in media_paths]
+        if media_count == 0:
+            # Se não for sidecar, tenta apenas a mídia principal
+            filename = f"{shortcode}.jpg"
+            L.download_pic(filename, post.url, post.date_utc)
+            media_files.append(filename)
+            media_count = 1
 
-            for i, path in enumerate(media_paths):
-                ext = path.lower()
-                if ext.endswith(".mp4"):
-                    media_group.append(InputMediaVideo(files_to_send[i]))
-                else:
-                    media_group.append(InputMediaPhoto(files_to_send[i]))
-
-            # Envia mídias em grupos de até 10
-            for i in range(0, len(media_group), 10):
-                await update.message.reply_media_group(media_group[i:i+10])
-
-            await processing_msg.delete()
-
-        else:
-            await processing_msg.edit_text("❌ Por favor, envie um link válido do Instagram.")
-
+        await update.message.reply_text(f"✅ Baixadas {media_count} mídias do post {shortcode}.")
     except Exception as e:
-        await processing_msg.edit_text(f"❌ Ocorreu um erro: {e}")
+        await update.message.reply_text(f"❌ Erro ao baixar: {e}")
 
-    finally:
-        if 'files_to_send' in locals():
-            for f in files_to_send:
-                f.close()
-        for path in media_paths:
-            if os.path.exists(path):
-                try:
-                    os.remove(path)
-                except OSError as e:
-                    print(f"Erro ao remover arquivo {path}: {e}")
-
-# Rodar bot via Webhook
 def main():
     app = Application.builder().token(TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
+    app.add_handler(CommandHandler("download", download))
 
-    # URL pública fornecida pelo Render
-    webhook_url = f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME')}"
-    print(f"Webhook URL: {webhook_url}")
-
+    # Webhook
+    print("Webhook URL:", WEBHOOK_URL)
     app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
-        webhook_url_path="",
-        webhook_url=webhook_url
+        webhook_url=WEBHOOK_URL
     )
 
 if __name__ == "__main__":
