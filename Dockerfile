@@ -19,4 +19,4 @@ COPY . .
 EXPOSE 8443
 
 # Comando de execução
-CMD ["python", "bot.py"]
+CMD ["python", "bot_instagram.py"]
