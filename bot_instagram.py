@@ -1,46 +1,46 @@
 import os
 import asyncio
-import instaloader
 from telegram import Update, InputMediaPhoto, InputMediaVideo
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+import instaloader
 
 # ▼▼▼ Variáveis de ambiente ▼▼▼
 TOKEN = os.getenv("TOKEN")
 IG_USERNAME = os.getenv("IG_USERNAME")
-COOKIE_FILE = os.getenv("COOKIE_FILE", "cookies_instagram.txt")  # Caminho do cookie
-PORT = int(os.getenv("PORT", 8443))  # Porta do Render
+COOKIE_FILE = os.getenv("COOKIE_FILE")
 # ▲▲▲ Variáveis de ambiente ▲▲▲
 
-# Pasta para downloads temporários
+# Pasta temporária para downloads
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 # Inicializa Instaloader
-L = instaloader.Instaloader(dirname_pattern=DOWNLOAD_DIR, download_videos=True, download_comments=False)
-if os.path.exists(COOKIE_FILE):
+L = instaloader.Instaloader(dirname_pattern=DOWNLOAD_DIR, download_videos=True, save_metadata=False)
+if COOKIE_FILE and os.path.exists(COOKIE_FILE):
     try:
         L.load_session_from_file(username=IG_USERNAME, filename=COOKIE_FILE)
     except Exception as e:
-        print(f"Erro ao carregar sessão de cookies: {e}")
+        print(f"⚠️ Erro ao carregar sessão de cookies: {e}")
 
-# Função para baixar mídias do Instagram
-def baixar_midias(url: str):
+# Função para baixar mídias de um post
+def baixar_midias_instagram(url: str):
+    from instaloader import Post
     arquivos = []
     try:
         shortcode = url.rstrip("/").split("/")[-1]
-        post = instaloader.Post.from_shortcode(L.context, shortcode)
+        post = Post.from_shortcode(L.context, shortcode)
         count = 0
 
-        # Carrossel / múltiplas mídias
-        for idx, node in enumerate(post.get_sidecar_nodes() if post.is_sidecar else [post]):
+        # Feed
+        for i, item in enumerate(post.get_sidecar_nodes() if post.is_sidecar else [post]):
             if count >= 20:
                 break
-            if node.is_video:
-                filename = os.path.join(DOWNLOAD_DIR, f"{shortcode}_{idx}.mp4")
-                L.download_pic(filename, node.video_url, post.date_utc)
+            filename = f"{DOWNLOAD_DIR}/{post.owner_username}_{count+1}.jpg"
+            if item.is_video:
+                filename = f"{DOWNLOAD_DIR}/{post.owner_username}_{count+1}.mp4"
+                L.download_pic(filename, item.video_url, post.date_utc)
             else:
-                filename = os.path.join(DOWNLOAD_DIR, f"{shortcode}_{idx}.jpg")
-                L.download_pic(filename, node.url, post.date_utc)
+                L.download_pic(filename, item.url, post.date_utc)
             arquivos.append(filename)
             count += 1
 
@@ -54,7 +54,7 @@ def baixar_midias(url: str):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Olá! 👋 Envie um link do Instagram que eu baixo até 20 mídias para você.\n"
-        "Posts com múltiplas fotos/vídeos também serão baixados."
+        "Posts com várias mídias também serão baixados."
     )
 
 # Quando usuário envia link
@@ -65,8 +65,8 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     processing_msg = await update.message.reply_text("⏳ Processando seu link...")
 
     try:
-        if "instagram.com/p/" in url:
-            media_paths = await asyncio.to_thread(baixar_midias, url)
+        if "instagram.com" in url:
+            media_paths = await asyncio.to_thread(baixar_midias_instagram, url)
 
             if not media_paths:
                 await processing_msg.edit_text(
@@ -82,10 +82,9 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ext = path.lower()
                 if ext.endswith((".mp4", ".mov", ".webm")):
                     media_group.append(InputMediaVideo(files_to_send[i]))
-                elif ext.endswith((".jpg", ".jpeg", ".png")):
+                elif ext.endswith((".jpg", ".jpeg", ".png", ".webp")):
                     media_group.append(InputMediaPhoto(files_to_send[i]))
 
-            # Envia mídias em grupos de até 10
             for i in range(0, len(media_group), 10):
                 await update.message.reply_media_group(media_group[i:i+10])
 
@@ -113,18 +112,14 @@ def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
-    print("🤖 Bot do Instagram rodando...")
-    
-    # Webhook
-    WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Ex.: https://meu-bot.onrender.com
-    if WEBHOOK_URL:
-        app.run_webhook(
-            listen="0.0.0.0",
-            port=PORT,
-            webhook_url=WEBHOOK_URL
-        )
-    else:
-        app.run_polling()
+    print("🤖 Bot rodando...")
+    # Rodando como webhook no Render:
+    port = int(os.environ.get("PORT", "8443"))
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=port,
+        webhook_url=f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME')}"
+    )
 
 if __name__ == "__main__":
     main()
