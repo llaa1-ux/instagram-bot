@@ -1,16 +1,14 @@
 services:
   - type: web
-    name: meu-bot-instagram
+    name: telegram-instagram-bot
     env: python
     plan: free
-    buildCommand: docker build -t meu-bot-instagram .
-    startCommand: docker run -e TELEGRAM_TOKEN=$TELEGRAM_TOKEN -e IG_USERNAME=$IG_USERNAME -e IG_PASSWORD=$IG_PASSWORD -e WEBHOOK_URL=$WEBHOOK_URL -p 8443:8443 meu-bot-instagram
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot_instagram.py
     envVars:
       - key: TELEGRAM_TOKEN
-        fromSecret: TELEGRAM_TOKEN
+        value: "seu_token_telegram_aqui"
       - key: IG_USERNAME
-        fromSecret: IG_USERNAME
-      - key: IG_PASSWORD
-        fromSecret: IG_PASSWORD
+        value: "seu_usuario_instagram"
       - key: WEBHOOK_URL
-        fromSecret: WEBHOOK_URL
+        value: "https://seuapp.onrender.com/webhook"
