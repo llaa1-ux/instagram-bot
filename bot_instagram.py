@@ -1,39 +1,34 @@
-import os
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
 import instaloader
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# Variáveis de ambiente
-TOKEN = os.getenv("TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-IG_USERNAME = os.getenv("IG_USERNAME")
-IG_PASSWORD = os.getenv("IG_PASSWORD")
+# Configurações
+IG_USERNAME = "seu_usuario"
+SESSION_FILE = f"session-{IG_USERNAME}"
+TELEGRAM_TOKEN = "seu_token_telegram_aqui"
 
-# Inicializar Instaloader e login
+# Instaloader
 L = instaloader.Instaloader()
-
 try:
-    L.load_session_from_file(IG_USERNAME)
-except FileNotFoundError:
-    L.login(IG_USERNAME, IG_PASSWORD)
-    L.save_session_to_file()
+    L.load_session_from_file(IG_USERNAME, filename=SESSION_FILE)
+    print("Sessão carregada!")
+except Exception as e:
+    print(f"Erro ao carregar sessão: {e}")
+    exit(1)
 
-# Função de comando /start
+# Comando /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Bot ativo! Instagram conectado ✅")
+    await update.message.reply_text("Bot online! Testando acesso ao Instagram...")
 
-# Inicializar bot
-def main():
-    app = Application.builder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
+    try:
+        profile = instaloader.Profile.from_username(L.context, IG_USERNAME)
+        await update.message.reply_text(
+            f"Nome: {profile.full_name}\nSeguidores: {profile.followers}"
+        )
+    except Exception as e:
+        await update.message.reply_text(f"Erro: {e}")
 
-    # Rodar webhook
-    port = int(os.environ.get("PORT", 8443))
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=port,
-        webhook_url=WEBHOOK_URL,
-    )
-
-if __name__ == "__main__":
-    main()
+# Inicializa bot
+app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+app.add_handler(CommandHandler("start", start))
+app.run_polling()
