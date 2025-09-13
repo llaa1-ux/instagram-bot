@@ -5,7 +5,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 # Configurações
 IG_USERNAME = "seu_usuario"
 SESSION_FILE = f"session-{IG_USERNAME}"
-TELEGRAM_TOKEN = "seu_token_telegram_aqui"
+TELEGRAM_TOKEN = "TELEGRAM_TOKEN"
 
 # Instaloader
 L = instaloader.Instaloader()
@@ -32,3 +32,4 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.run_polling()
+
