@@ -1,10 +1,10 @@
 services:
   - type: web
     name: instagram-bot
-    env: python
+    env: docker
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: python bot_instagram.py
+    dockerfilePath: Dockerfile
+    autoDeploy: true
     envVars:
       - key: TELEGRAM_TOKEN
         value: "SEU_TOKEN_DO_TELEGRAM"
@@ -12,3 +12,5 @@ services:
         value: "SEU_USUARIO_INSTAGRAM"
       - key: WEBHOOK_URL
         value: "https://SEU_APP.onrender.com/webhook"
+      - key: PORT
+        value: "8443"
