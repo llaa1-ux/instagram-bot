@@ -1,34 +1,50 @@
 import os
 import instaloader
-from telegram import Update, Bot
+from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# Configurações
-IG_USERNAME = os.environ["IG_USERNAME"]
-IG_PASSWORD = os.environ["IG_PASSWORD"]
+# Configurações do Instagram
+IG_USERNAME = os.environ.get("IG_USERNAME")
+IG_PASSWORD = os.environ.get("IG_PASSWORD")
 SESSION_FILE = f"session-{IG_USERNAME}"
-TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
-WEBHOOK_URL = os.environ["WEBHOOK_URL"]
+
+# Configurações do Telegram
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # Ex: https://seu_app.onrender.com/webhook
 PORT = int(os.environ.get("PORT", 8443))
 
-# Instaloader
+# Inicializa Instaloader
 L = instaloader.Instaloader()
-try:
-    L.load_session_from_file(IG_USERNAME, filename=SESSION_FILE)
-    print("Sessão carregada!")
-except Exception as e:
-    print(f"Sessão não encontrada. Fazendo login... ({e})")
-    try:
-        L.login(IG_USERNAME, IG_PASSWORD)
-        L.save_session_to_file(SESSION_FILE)
-        print("Login realizado e sessão salva!")
-    except Exception as e:
-        print(f"Erro no login: {e}")
-        exit(1)
 
-# Comando /start
+def carregar_sessao():
+    """Tenta carregar a sessão existente; se falhar, faz login e salva."""
+    try:
+        L.load_session_from_file(IG_USERNAME, filename=SESSION_FILE)
+        print("Sessão do Instagram carregada!")
+    except FileNotFoundError:
+        print("Arquivo de sessão não encontrado. Fazendo login manual...")
+        try:
+            L.login(IG_USERNAME, IG_PASSWORD)
+            L.save_session_to_file(filename=SESSION_FILE)
+            print("Login realizado e sessão salva!")
+        except Exception as e:
+            print(f"Erro ao fazer login: {e}")
+            exit(1)
+    except instaloader.exceptions.ConnectionException:
+        # Sessão inválida ou expirada
+        print("Sessão expirada ou inválida. Fazendo login novamente...")
+        try:
+            L.login(IG_USERNAME, IG_PASSWORD)
+            L.save_session_to_file(filename=SESSION_FILE)
+            print("Sessão renovada!")
+        except Exception as e:
+            print(f"Erro ao renovar sessão: {e}")
+            exit(1)
+
+# Comando /start do Telegram
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Bot online! Testando acesso ao Instagram...")
+    carregar_sessao()
     try:
         profile = instaloader.Profile.from_username(L.context, IG_USERNAME)
         await update.message.reply_text(
@@ -38,15 +54,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Erro: {e}")
 
 # Inicializa bot com webhook
-app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-app.add_handler(CommandHandler("start", start))
+async def main():
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
 
-bot: Bot = app.bot
-bot.delete_webhook(drop_pending_updates=True)
-bot.set_webhook(url=WEBHOOK_URL)
+    # Remove webhook antigo e define o novo
+    await app.bot.delete_webhook(drop_pending_updates=True)
+    await app.bot.set_webhook(url=WEBHOOK_URL)
 
-app.run_webhook(
-    listen="0.0.0.0",
-    port=PORT,
-    webhook_url_path="/"
-)
+    print(f"Webhook definido: {WEBHOOK_URL}")
+    # Inicia o bot
+    await app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        webhook_path="/webhook",
+    )
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
