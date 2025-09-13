@@ -1,55 +1,39 @@
 import os
-from instaloader import Instaloader, Profile
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
+import instaloader
 
 # Variáveis de ambiente
 TOKEN = os.getenv("TOKEN")
-PORT = int(os.getenv("PORT", 5000))
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Ex: https://instagram-bot-3awu.onrender.com/
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+IG_USERNAME = os.getenv("IG_USERNAME")
+IG_PASSWORD = os.getenv("IG_PASSWORD")
 
-# Inicializando Instaloader
-L = Instaloader()
-SESSION_FILE = "session_instagram"  # nome do arquivo de sessão que você adicionou
-USERNAME_INSTAGRAM = os.getenv("IG_USERNAME")
+# Inicializar Instaloader e login
+L = instaloader.Instaloader()
 
 try:
-    L.load_session_from_file(USERNAME_INSTAGRAM, SESSION_FILE)
-    print("Sessão do Instagram carregada ✅")
-except Exception as e:
-    print(f"Erro ao carregar sessão de cookies: {e}")
+    L.load_session_from_file(IG_USERNAME)
+except FileNotFoundError:
+    L.login(IG_USERNAME, IG_PASSWORD)
+    L.save_session_to_file()
 
-# Função /start
+# Função de comando /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Bot ativo! ✅")
+    await update.message.reply_text("Bot ativo! Instagram conectado ✅")
 
-# Função /perfil para buscar info de perfil
-async def perfil(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Use: /perfil <username>")
-        return
-    username = context.args[0]
-    try:
-        profile = Profile.from_username(L.context, username)
-        msg = (
-            f"Perfil: {profile.username}\n"
-            f"Nome: {profile.full_name}\n"
-            f"Seguidores: {profile.followers}\n"
-            f"Seguindo: {profile.followees}\n"
-            f"Posts: {profile.mediacount}"
-        )
-        await update.message.reply_text(msg)
-    except Exception as e:
-        await update.message.reply_text(f"Erro: {e}")
+# Inicializar bot
+def main():
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
 
-# Inicializando bot
-app = Application.builder().token(TOKEN).build()
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("perfil", perfil))
+    # Rodar webhook
+    port = int(os.environ.get("PORT", 8443))
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=port,
+        webhook_url=WEBHOOK_URL,
+    )
 
-# Rodando webhook
-app.run_webhook(
-    listen="0.0.0.0",
-    port=PORT,
-    webhook_url=WEBHOOK_URL
-)
+if __name__ == "__main__":
+    main()

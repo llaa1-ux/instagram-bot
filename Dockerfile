@@ -1,29 +1,26 @@
-# Dockerfile para o bot Telegram + Instaloader
-
-# 1. Imagem base com Python 3.11
+# Imagem base
 FROM python:3.11-slim
 
-# 2. Definir diretório de trabalho
+# Diretório de trabalho
 WORKDIR /app
 
-# 3. Copiar arquivos do projeto para dentro do container
+# Copiar arquivos do projeto
 COPY . /app
 
-# 4. Atualizar pip e instalar dependências
+# Atualizar pip
 RUN pip install --upgrade pip
 
-# Instalar versões compatíveis dos pacotes
-RUN pip install \
-    python-telegram-bot==20.3 \
-    instaloader==4.14 \
-    httpx==0.28.1
+# Instalar pacotes compatíveis
+RUN pip install python-telegram-bot==20.3 instaloader==4.14
 
-# 5. Expor porta (para webhook do Telegram, se necessário)
+# Expor porta (para webhook)
 EXPOSE 8443
 
-# 6. Variáveis de ambiente (adicione seu TOKEN e WEBHOOK_URL aqui ou defina no Render)
-# ENV TOKEN=<seu_token_aqui>
-# ENV WEBHOOK_URL=<sua_webhook_url_aqui>
+# Variáveis de ambiente (defina no Render)
+# ENV TOKEN=<seu_token_telegram>
+# ENV WEBHOOK_URL=<sua_webhook_url>
+# ENV IG_USERNAME=<usuario_instagram>
+# ENV IG_PASSWORD=<senha_instagram>
 
-# 7. Comando para iniciar o bot
+# Comando para iniciar o bot
 CMD ["python", "bot_instagram.py"]
