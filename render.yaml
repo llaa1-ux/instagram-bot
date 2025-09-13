@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: bot-instagram
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot_instagram.py
+    envVars:
+      - key: IG_USERNAME
+        value: "seu_usuario_instagram"
+      - key: IG_PASSWORD
+        value: "sua_senha_instagram"
+      - key: TELEGRAM_TOKEN
+        value: "seu_token_telegram"
+      - key: WEBHOOK_URL
+        value: "https://seuapp.onrender.com/"
+      - key: PORT
+        value: "8443"

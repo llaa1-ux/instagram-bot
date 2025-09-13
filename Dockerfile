@@ -1,22 +1,18 @@
-# Imagem base oficial do Python
+# Imagem base
 FROM python:3.11-slim
 
-# Define diretório de trabalho
+# Configura diretório de trabalho
 WORKDIR /app
 
-# Instala dependências do sistema
-RUN apt-get update && apt-get install -y \
-    libz-dev libjpeg-dev libffi-dev \
-    && rm -rf /var/lib/apt/lists/*
-
 # Copia arquivos do projeto
-COPY requirements.txt requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+COPY . /app
 
-COPY . .
+# Atualiza pip e instala dependências
+RUN pip install --upgrade pip
+RUN pip install -r requirements.txt
 
-# Expõe a porta usada pelo Render
+# Expondo porta (Render vai usar essa porta)
 EXPOSE 8443
 
-# Comando de execução
+# Comando para iniciar o bot
 CMD ["python", "bot_instagram.py"]
