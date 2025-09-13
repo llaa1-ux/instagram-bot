@@ -1,65 +1,77 @@
 import os
-import instaloader
+import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
+import instaloader
+
+# Configurar logging
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
 
 # Variáveis de ambiente
-TOKEN = os.environ.get("TOKEN")
-IG_USERNAME = os.environ.get("IG_USERNAME")
-COOKIE_FILE = os.environ.get("COOKIE_FILE")
-PORT = int(os.environ.get("PORT", 8443))
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
+TOKEN = os.getenv("TOKEN")
+IG_USERNAME = os.getenv("IG_USERNAME")
+COOKIE_FILE = os.getenv("COOKIE_FILE")  # Ex: cookies_instagram.txt
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Ex: https://instagram-bot-3awu.onrender.com/instagram
+PORT = int(os.getenv("PORT", 5000))
 
-# Inicializa Instaloader
+# Inicializar Instaloader
 L = instaloader.Instaloader()
+
+# Carregar sessão de cookies
 try:
     L.load_session_from_file(username=IG_USERNAME, filename=COOKIE_FILE)
+    logging.info("Sessão de cookies carregada com sucesso.")
 except Exception as e:
-    print("Erro ao carregar sessão de cookies:", e)
+    logging.warning(f"Erro ao carregar sessão de cookies: {e}")
 
+# Comando /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Bot Instagram ativo! Use /download <URL do post>.")
+    await update.message.reply_text(
+        "Bot do Instagram ativo! Use /download <URL do post> para baixar mídias."
+    )
 
+# Comando /download
 async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) == 0:
-        await update.message.reply_text("Envie o link do post do Instagram. Ex: /download https://www.instagram.com/p/xxxx")
+        await update.message.reply_text("Envie o link do post após o comando.")
         return
 
     post_url = context.args[0]
-    shortcode = post_url.rstrip("/").split("/")[-1]
-    
     try:
+        shortcode = post_url.rstrip("/").split("/")[-1]
         post = instaloader.Post.from_shortcode(L.context, shortcode)
-        media_count = 0
-        media_files = []
 
-        for idx, resource in enumerate(post.get_sidecar_nodes(), start=1):
-            if idx > 20:
-                break
-            filename = f"{shortcode}_{idx}.jpg"
-            L.download_pic(filename, resource.display_url, post.date_utc)
-            media_files.append(filename)
-            media_count += 1
+        urls = []
 
-        if media_count == 0:
-            # Se não for sidecar, tenta apenas a mídia principal
-            filename = f"{shortcode}.jpg"
-            L.download_pic(filename, post.url, post.date_utc)
-            media_files.append(filename)
-            media_count = 1
+        # Caso seja carrossel (múltiplas mídias)
+        if post.typename == "GraphSidecar":
+            for idx, node in enumerate(post.get_sidecar_nodes(), start=1):
+                if idx > 20:  # limitar a 20 mídias
+                    break
+                urls.append(node.display_url)
+        else:  # foto ou vídeo único
+            urls.append(post.url)
 
-        await update.message.reply_text(f"✅ Baixadas {media_count} mídias do post {shortcode}.")
+        # Enviar URLs para o Telegram
+        for url in urls:
+            await update.message.reply_text(url)
+
+        if not urls:
+            await update.message.reply_text("❌ Nenhuma mídia encontrada.")
+
     except Exception as e:
-        await update.message.reply_text(f"❌ Erro ao baixar: {e}")
+        await update.message.reply_text(f"❌ Erro ao baixar mídia: {e}")
 
+# Main
 def main():
     app = Application.builder().token(TOKEN).build()
-
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("download", download))
 
-    # Webhook
-    print("Webhook URL:", WEBHOOK_URL)
+    # Rodar via webhook
     app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
