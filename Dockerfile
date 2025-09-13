@@ -1,10 +1,20 @@
+# Escolhendo imagem base do Python
 FROM python:3.10-slim
 
+# Diretório de trabalho
 WORKDIR /app
 
-COPY requirements.txt requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+# Copiar arquivos
+COPY requirements.txt .
+COPY bot_instagram.py .
+COPY cookies_instagram.txt .
 
-COPY . .
+# Instalar dependências
+RUN pip install --upgrade pip
+RUN pip install -r requirements.txt
 
+# Expor porta
+EXPOSE 8443
+
+# Comando para rodar o bot
 CMD ["python", "bot_instagram.py"]
