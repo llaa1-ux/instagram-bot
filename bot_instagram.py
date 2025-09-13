@@ -1,7 +1,6 @@
 import os
 import instaloader
 from aiohttp import web
-from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, TelegramObject
 
 # Configurações
@@ -73,3 +72,4 @@ if __name__ == "__main__":
     import asyncio
     carregar_sessao()
     asyncio.run(main())
+
